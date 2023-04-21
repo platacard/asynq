@@ -9,8 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/MakeNowJust/heredoc/v2"
-	"github.com/hibiken/asynq/tools/asynq/cmd/dash"
+	"github.com/qqunity/asynq/tools/asynq/cmd/dash"
 	"github.com/spf13/cobra"
 )
 

@@ -12,11 +12,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/hibiken/asynq/internal/base"
-	"github.com/hibiken/asynq/internal/rdb"
-	"github.com/hibiken/asynq/internal/testbroker"
-	h "github.com/hibiken/asynq/internal/testutil"
-	"github.com/hibiken/asynq/internal/timeutil"
+	"github.com/platacard/asynq/internal/base"
+	"github.com/platacard/asynq/internal/rdb"
+	"github.com/platacard/asynq/internal/testbroker"
+	h "github.com/platacard/asynq/internal/testutil"
+	"github.com/platacard/asynq/internal/timeutil"
 )
 
 // Test goes through a few phases.

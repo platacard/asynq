@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/platacard/asynq/internal/base"
+	"github.com/platacard/asynq/internal/log"
+	"github.com/platacard/asynq/internal/rdb"
 	"github.com/redis/go-redis/v9"
-	"github.com/hibiken/asynq/internal/base"
-	"github.com/hibiken/asynq/internal/log"
-	"github.com/hibiken/asynq/internal/rdb"
 )
 
 // Server is responsible for task processing and task lifecycle management.
