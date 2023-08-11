@@ -8,7 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/qqunity/asynq"
+	"github.com/gdamore/tcell/v2"
+	"github.com/platacard/asynq"
 )
 
 // keyEventHandler handles keyboard events and updates the state.

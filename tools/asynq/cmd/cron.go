@@ -11,7 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/qqunity/asynq"
+	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/platacard/asynq"
 	"github.com/spf13/cobra"
 )
 

@@ -14,17 +14,17 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/fatih/color"
-	"github.com/go-redis/redis/v8"
-	"github.com/qqunity/asynq"
-	"github.com/qqunity/asynq/internal/base"
-	"github.com/qqunity/asynq/internal/rdb"
+	homedir "github.com/mitchellh/go-homedir"
+	"github.com/platacard/asynq"
+	"github.com/platacard/asynq/internal/base"
+	"github.com/platacard/asynq/internal/rdb"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/utf8string"
-
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
+	"golang.org/x/exp/utf8string"
 )
 
 var cfgFile string
@@ -56,7 +56,7 @@ var rootCmd = &cobra.Command{
 		$ asynq task list --queue=myqueue --state=archived`),
 	Annotations: map[string]string{
 		"help:feedback": heredoc.Doc(`
-			Open an issue at https://github.com/qqunity/asynq/issues/new/choose`),
+			Open an issue at https://github.com/platacard/asynq/issues/new/choose`),
 	},
 }
 

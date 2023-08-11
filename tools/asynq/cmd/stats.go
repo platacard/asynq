@@ -16,8 +16,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/fatih/color"
-	"github.com/qqunity/asynq/internal/rdb"
+	"github.com/platacard/asynq/internal/rdb"
 	"github.com/spf13/cobra"
 )
 
