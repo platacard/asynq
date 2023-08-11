@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/qqunity/asynq"
-	"github.com/qqunity/asynq/internal/base"
-	asynqcontext "github.com/qqunity/asynq/internal/context"
+	"github.com/platacard/asynq"
+	"github.com/platacard/asynq/internal/base"
+	asynqcontext "github.com/platacard/asynq/internal/context"
+	"github.com/redis/go-redis/v9"
 )
 
 // NewSemaphore creates a counting Semaphore for the given scope with the given number of tokens.
