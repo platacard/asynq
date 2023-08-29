@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/platacard/asynq"
 	"github.com/platacard/asynq/x/rate"
-	"github.com/qqunity/asynq"
 )
 
 type RateLimitError struct {

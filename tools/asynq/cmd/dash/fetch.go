@@ -7,7 +7,8 @@ package dash
 import (
 	"sort"
 
-	"github.com/qqunity/asynq"
+	"github.com/gdamore/tcell/v2"
+	"github.com/platacard/asynq"
 )
 
 type fetcher interface {

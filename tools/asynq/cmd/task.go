@@ -6,13 +6,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/MakeNowJust/heredoc/v2"
 	"io"
 	"os"
 	"time"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/fatih/color"
-	"github.com/qqunity/asynq"
+	"github.com/platacard/asynq"
 	"github.com/spf13/cobra"
 )
 

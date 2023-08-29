@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qqunity/asynq"
+	"github.com/gdamore/tcell/v2"
+	"github.com/platacard/asynq"
 )
 
 // viewType is an enum for dashboard views.
