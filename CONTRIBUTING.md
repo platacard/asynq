@@ -50,3 +50,19 @@ Please run tests against redis cluster locally with `--redis_cluster` flag to en
 After you have submitted your pull request, we'll try to get back to you as soon as possible. We may suggest some changes or improvements.
 
 Thank you for contributing!
+
+## Tests
+
+To run tests, you need redis.
+
+Run redis:
+
+```shell
+docker run -d --name asynq-redis -p 6379:6379 redis:7
+```
+
+Run tests:
+
+```shell
+go test -v ./...
+```
