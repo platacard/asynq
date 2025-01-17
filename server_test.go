@@ -130,7 +130,7 @@ func TestServerWithRedisDown(t *testing.T) {
 	srv.broker = testBroker
 	srv.forwarder.broker = testBroker
 	srv.heartbeater.broker = testBroker
-	srv.processor.broker = testBroker
+	srv.processor.setBroker(testBroker)
 	srv.subscriber.broker = testBroker
 	testBroker.Sleep()
 
@@ -163,7 +163,7 @@ func TestServerWithFlakyBroker(t *testing.T) {
 	srv.broker = testBroker
 	srv.forwarder.broker = testBroker
 	srv.heartbeater.broker = testBroker
-	srv.processor.broker = testBroker
+	srv.processor.setBroker(testBroker)
 	srv.subscriber.broker = testBroker
 
 	c := NewClient(redisConnOpt)
