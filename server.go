@@ -21,6 +21,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type taskProcessor interface {
+	start(wg *sync.WaitGroup)
+	stop()
+	shutdown()
+	setHandler(handler Handler)
+	setBroker(broker base.Broker)
+	exec()
+}
+
 // Server is responsible for task processing and task lifecycle management.
 //
 // Server pulls tasks off queues and processes them.
@@ -43,7 +52,7 @@ type Server struct {
 	// wait group to wait for all goroutines to finish.
 	wg            sync.WaitGroup
 	forwarder     *forwarder
-	processor     *processor
+	processor     taskProcessor
 	syncer        *syncer
 	heartbeater   *heartbeater
 	subscriber    *subscriber
@@ -239,6 +248,11 @@ type Config struct {
 	//
 	// If unset or nil, the group aggregation feature will be disabled on the server.
 	GroupAggregator GroupAggregator
+
+	// UseOndemandProcessor specifies whether the server should be in ondemand mode.
+	// If true, the server will not start an internal Processor worker.
+	// Instead, it will use the ExecuteTask() method to manually execute tasks.
+	UseOndemandProcessor bool
 }
 
 // GroupAggregator aggregates a group of tasks into one before the tasks are passed to the Handler.
@@ -562,7 +576,7 @@ func NewServer(r RedisConnOpt, cfg Config) *Server {
 		maxSize:         cfg.GroupMaxSize,
 		groupAggregator: cfg.GroupAggregator,
 	})
-	return &Server{
+	srv := &Server{
 		logger:        logger,
 		broker:        rdb,
 		state:         srvState,
@@ -576,6 +590,10 @@ func NewServer(r RedisConnOpt, cfg Config) *Server {
 		janitor:       janitor,
 		aggregator:    aggregator,
 	}
+	if cfg.UseOndemandProcessor {
+		srv.processor = newOndemandProcessor(processor)
+	}
+	return srv
 }
 
 // A Handler processes tasks.
@@ -636,7 +654,7 @@ func (srv *Server) Start(handler Handler) error {
 	if handler == nil {
 		return fmt.Errorf("asynq: server cannot run with nil handler")
 	}
-	srv.processor.handler = handler
+	srv.processor.setHandler(handler)
 
 	if err := srv.start(); err != nil {
 		return err
@@ -724,4 +742,10 @@ func (srv *Server) Stop() {
 	srv.logger.Info("Stopping processor")
 	srv.processor.stop()
 	srv.logger.Info("Processor stopped")
+}
+
+// ExecuteTask executes the next ready task from the queue according to priority.
+// It reuses the processor's exec() logic.
+func (srv *Server) ExecuteTask() {
+	srv.processor.exec()
 }

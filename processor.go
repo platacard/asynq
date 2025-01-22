@@ -532,3 +532,11 @@ func (p *processor) computeDeadline(msg *base.TaskMessage) time.Time {
 func IsPanicError(err error) bool {
 	return errors.IsPanicError(err)
 }
+
+func (p *processor) setHandler(handler Handler) {
+	p.handler = handler
+}
+
+func (p *processor) setBroker(broker base.Broker) {
+	p.broker = broker
+}
