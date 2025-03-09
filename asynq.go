@@ -317,6 +317,9 @@ type RedisFailoverClientOpt struct {
 	// https://redis.io/topics/sentinel.
 	SentinelAddrs []string
 
+	// Redis sentinel username.
+	SentinelUsername string
+
 	// Redis sentinel password.
 	SentinelPassword string
 
@@ -365,6 +368,7 @@ func (opt RedisFailoverClientOpt) MakeRedisClient() interface{} {
 	return redis.NewFailoverClient(&redis.FailoverOptions{
 		MasterName:       opt.MasterName,
 		SentinelAddrs:    opt.SentinelAddrs,
+		SentinelUsername: opt.SentinelUsername,
 		SentinelPassword: opt.SentinelPassword,
 		Username:         opt.Username,
 		Password:         opt.Password,
