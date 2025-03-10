@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/platacard/asynq/internal/errors"
 	pb "github.com/platacard/asynq/internal/proto"
 	"github.com/platacard/asynq/internal/timeutil"

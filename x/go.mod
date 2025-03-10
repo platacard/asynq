@@ -1,6 +1,8 @@
 module github.com/platacard/asynq/x
 
-go 1.22
+go 1.23.0
+
+toolchain go1.23.4
 
 replace github.com/platacard/asynq => ../
 
@@ -8,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/platacard/asynq v0.0.0
 	github.com/prometheus/client_golang v1.20.5
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.7.1
 )
 
 require (
@@ -21,8 +23,8 @@ require (
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
-	github.com/spf13/cast v1.7.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/time v0.7.0 // indirect
-	google.golang.org/protobuf v1.35.1 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 )
