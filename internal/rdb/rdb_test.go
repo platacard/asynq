@@ -175,8 +175,8 @@ func TestEnqueueQueueCache(t *testing.T) {
 	}
 
 	// Check queue is in the AllQueues set.
-	if !r.client.SIsMember(context.Background(), base.AllQueues, t1.Queue).Val() {
-		t.Fatalf("%q is not a member of SET %q", t1.Queue, base.AllQueues)
+	if !r.client.SIsMember(context.Background(), base.AllQueues(), t1.Queue).Val() {
+		t.Fatalf("%q is not a member of SET %q", t1.Queue, base.AllQueues())
 	}
 
 	if _, ok := r.queuesPublished.Load(t1.Queue); !ok {
@@ -193,8 +193,8 @@ func TestEnqueueQueueCache(t *testing.T) {
 			t.Fatalf("%q is still cached in queuesPublished", t1.Queue)
 		}
 
-		if r.client.SIsMember(context.Background(), base.AllQueues, t1.Queue).Val() {
-			t.Fatalf("%q is a member of SET %q", t1.Queue, base.AllQueues)
+		if r.client.SIsMember(context.Background(), base.AllQueues(), t1.Queue).Val() {
+			t.Fatalf("%q is a member of SET %q", t1.Queue, base.AllQueues())
 		}
 
 		err = r.Enqueue(context.Background(), t1)
@@ -203,8 +203,8 @@ func TestEnqueueQueueCache(t *testing.T) {
 		}
 
 		// Check queue is in the AllQueues set.
-		if !r.client.SIsMember(context.Background(), base.AllQueues, t1.Queue).Val() {
-			t.Fatalf("%q is not a member of SET %q", t1.Queue, base.AllQueues)
+		if !r.client.SIsMember(context.Background(), base.AllQueues(), t1.Queue).Val() {
+			t.Fatalf("%q is not a member of SET %q", t1.Queue, base.AllQueues())
 		}
 
 		if _, ok := r.queuesPublished.Load(t1.Queue); !ok {
