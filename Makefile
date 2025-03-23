@@ -5,7 +5,3 @@ proto: internal/proto/asynq.proto
 				 --go_out=$(ROOT_DIR)/internal/proto \
 				 --go_opt=module=github.com/platacard/asynq/internal/proto \
 				 $(ROOT_DIR)/internal/proto/asynq.proto
-
-.PHONY: lint
-lint:
-	golangci-lint run
