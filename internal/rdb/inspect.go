@@ -18,7 +18,7 @@ import (
 
 // AllQueues returns a list of all queue names.
 func (r *RDB) AllQueues() ([]string, error) {
-	return r.client.SMembers(context.Background(), base.AllQueues()).Result()
+	return r.client.SMembers(context.Background(), base.AllQueues).Result()
 }
 
 // Stats represents a state of queues at a certain time.
@@ -804,7 +804,7 @@ func (r *RDB) ListAggregating(qname, gname string, pgn Pagination) ([]*base.Task
 
 // Reports whether a queue with the given name exists.
 func (r *RDB) queueExists(qname string) (bool, error) {
-	return r.client.SIsMember(context.Background(), base.AllQueues(), qname).Result()
+	return r.client.SIsMember(context.Background(), base.AllQueues, qname).Result()
 }
 
 // KEYS[1] -> key for ids set (e.g. asynq:{<qname>}:scheduled)
@@ -1829,9 +1829,10 @@ func (r *RDB) RemoveQueue(qname string, force bool) error {
 	}
 	switch n {
 	case 1:
-		if err := r.client.SRem(context.Background(), base.AllQueues(), qname).Err(); err != nil {
+		if err := r.client.SRem(context.Background(), base.AllQueues, qname).Err(); err != nil {
 			return errors.E(op, errors.Unknown, err)
 		}
+		r.queuesPublished.Delete(qname)
 		return nil
 	case -1:
 		return errors.E(op, errors.NotFound, &errors.QueueNotEmptyError{Queue: qname})
@@ -1852,7 +1853,7 @@ return keys`)
 // ListServers returns the list of server info.
 func (r *RDB) ListServers() ([]*base.ServerInfo, error) {
 	now := r.clock.Now()
-	res, err := listServerKeysCmd.Run(context.Background(), r.client, []string{base.AllServers()}, now.Unix()).Result()
+	res, err := listServerKeysCmd.Run(context.Background(), r.client, []string{base.AllServers}, now.Unix()).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -1886,7 +1887,7 @@ return keys`)
 func (r *RDB) ListWorkers() ([]*base.WorkerInfo, error) {
 	var op errors.Op = "rdb.ListWorkers"
 	now := r.clock.Now()
-	res, err := listWorkersCmd.Run(context.Background(), r.client, []string{base.AllWorkers()}, now.Unix()).Result()
+	res, err := listWorkersCmd.Run(context.Background(), r.client, []string{base.AllWorkers}, now.Unix()).Result()
 	if err != nil {
 		return nil, errors.E(op, errors.Unknown, err)
 	}
@@ -1921,7 +1922,7 @@ return keys`)
 // ListSchedulerEntries returns the list of scheduler entries.
 func (r *RDB) ListSchedulerEntries() ([]*base.SchedulerEntry, error) {
 	now := r.clock.Now()
-	res, err := listSchedulerKeysCmd.Run(context.Background(), r.client, []string{base.AllSchedulers()}, now.Unix()).Result()
+	res, err := listSchedulerKeysCmd.Run(context.Background(), r.client, []string{base.AllSchedulers}, now.Unix()).Result()
 	if err != nil {
 		return nil, err
 	}
