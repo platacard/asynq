@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"runtime"
 	"strings"
 	"sync"
@@ -37,6 +37,9 @@ type Server struct {
 	logger *log.Logger
 
 	broker base.Broker
+	// When a Server has been created with an existing Redis connection, we do
+	// not want to close it.
+	sharedConnection bool
 
 	state *serverState
 
@@ -171,16 +174,15 @@ type Config struct {
 	//     })
 	//
 	//     ErrorHandler: asynq.ErrorHandlerFunc(reportError)
-
+	//
 	//    we can also handle panic error like:
 	//     func reportError(ctx context, task *asynq.Task, err error) {
-	//         if asynq.IsPanic(err) {
+	//         if asynq.IsPanicError(err) {
 	//	          errorReportingService.Notify(err)
 	// 	       }
 	//     })
 	//
 	//     ErrorHandler: asynq.ErrorHandlerFunc(reportError)
-
 	ErrorHandler ErrorHandler
 
 	// Logger specifies the logger used by the server instance.
@@ -239,6 +241,17 @@ type Config struct {
 	//
 	// If unset or nil, the group aggregation feature will be disabled on the server.
 	GroupAggregator GroupAggregator
+
+	// JanitorInterval specifies the average interval of janitor checks for expired completed tasks.
+	//
+	// If unset or zero, default interval of 8 seconds is used.
+	JanitorInterval time.Duration
+
+	// JanitorBatchSize specifies the number of expired completed tasks to be deleted in one run.
+	//
+	// If unset or zero, default batch size of 100 is used.
+	// Make sure to not put a big number as the batch size to prevent a long-running script.
+	JanitorBatchSize int
 }
 
 // GroupAggregator aggregates a group of tasks into one before the tasks are passed to the Handler.
@@ -386,9 +399,8 @@ func toInternalLogLevel(l LogLevel) log.Level {
 // DefaultRetryDelayFunc is the default RetryDelayFunc used if one is not specified in Config.
 // It uses exponential back-off strategy to calculate the retry delay.
 func DefaultRetryDelayFunc(n int, e error, t *Task) time.Duration {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	// Formula taken from https://github.com/mperham/sidekiq.
-	s := int(math.Pow(float64(n), 4)) + 15 + (r.Intn(30) * (n + 1))
+	s := int(math.Pow(float64(n), 4)) + 15 + (rand.IntN(30) * (n + 1))
 	return time.Duration(s) * time.Second
 }
 
@@ -408,15 +420,28 @@ const (
 	defaultDelayedTaskCheckInterval = 5 * time.Second
 
 	defaultGroupGracePeriod = 1 * time.Minute
+
+	defaultJanitorInterval = 8 * time.Second
+
+	defaultJanitorBatchSize = 100
 )
 
 // NewServer returns a new Server given a redis connection option
 // and server configuration.
 func NewServer(r RedisConnOpt, cfg Config) *Server {
-	c, ok := r.MakeRedisClient().(redis.UniversalClient)
+	redisClient, ok := r.MakeRedisClient().(redis.UniversalClient)
 	if !ok {
 		panic(fmt.Sprintf("asynq: unsupported RedisConnOpt type %T", r))
 	}
+	server := NewServerFromRedisClient(redisClient, cfg)
+	server.sharedConnection = false
+	return server
+}
+
+// NewServerFromRedisClient returns a new instance of Server given a redis.UniversalClient
+// and server configuration
+// Warning: The underlying redis connection pool will not be closed by Asynq, you are responsible for closing it.
+func NewServerFromRedisClient(c redis.UniversalClient, cfg Config) *Server {
 	baseCtxFn := cfg.BaseContext
 	if baseCtxFn == nil {
 		baseCtxFn = context.Background
@@ -547,11 +572,26 @@ func NewServer(r RedisConnOpt, cfg Config) *Server {
 		interval:        healthcheckInterval,
 		healthcheckFunc: cfg.HealthCheckFunc,
 	})
+
+	janitorInterval := cfg.JanitorInterval
+	if janitorInterval == 0 {
+		janitorInterval = defaultJanitorInterval
+	}
+
+	janitorBatchSize := cfg.JanitorBatchSize
+	if janitorBatchSize == 0 {
+		janitorBatchSize = defaultJanitorBatchSize
+	}
+	if janitorBatchSize > defaultJanitorBatchSize {
+		logger.Warnf("Janitor batch size of %d is greater than the recommended batch size of %d. "+
+			"This might cause a long-running script", janitorBatchSize, defaultJanitorBatchSize)
+	}
 	janitor := newJanitor(janitorParams{
-		logger:   logger,
-		broker:   rdb,
-		queues:   qnames,
-		interval: 8 * time.Second,
+		logger:    logger,
+		broker:    rdb,
+		queues:    qnames,
+		interval:  janitorInterval,
+		batchSize: janitorBatchSize,
 	})
 	aggregator := newAggregator(aggregatorParams{
 		logger:          logger,
@@ -563,18 +603,19 @@ func NewServer(r RedisConnOpt, cfg Config) *Server {
 		groupAggregator: cfg.GroupAggregator,
 	})
 	return &Server{
-		logger:        logger,
-		broker:        rdb,
-		state:         srvState,
-		forwarder:     forwarder,
-		processor:     processor,
-		syncer:        syncer,
-		heartbeater:   heartbeater,
-		subscriber:    subscriber,
-		recoverer:     recoverer,
-		healthchecker: healthchecker,
-		janitor:       janitor,
-		aggregator:    aggregator,
+		logger:           logger,
+		broker:           rdb,
+		sharedConnection: true,
+		state:            srvState,
+		forwarder:        forwarder,
+		processor:        processor,
+		syncer:           syncer,
+		heartbeater:      heartbeater,
+		subscriber:       subscriber,
+		recoverer:        recoverer,
+		healthchecker:    healthchecker,
+		janitor:          janitor,
+		aggregator:       aggregator,
 	}
 }
 
@@ -590,6 +631,10 @@ func NewServer(r RedisConnOpt, cfg Config) *Server {
 // One exception to this rule is when ProcessTask returns a SkipRetry error.
 // If the returned error is SkipRetry or an error wraps SkipRetry, retry is
 // skipped and the task will be immediately archived instead.
+//
+// Another exception to this rule is when ProcessTask returns a RevokeTask error.
+// If the returned error is RevokeTask or an error wraps RevokeTask, the task
+// will not be retried or archived.
 type Handler interface {
 	ProcessTask(context.Context, *Task) error
 }
@@ -702,7 +747,9 @@ func (srv *Server) Shutdown() {
 	srv.heartbeater.shutdown()
 	srv.wg.Wait()
 
-	srv.broker.Close()
+	if !srv.sharedConnection {
+		srv.broker.Close()
+	}
 	srv.logger.Info("Exiting")
 }
 
@@ -714,7 +761,7 @@ func (srv *Server) Shutdown() {
 func (srv *Server) Stop() {
 	srv.state.mu.Lock()
 	if srv.state.value != srvStateActive {
-		// Invalid calll to Stop, server can only go from Active state to Stopped state.
+		// Invalid call to Stop, server can only go from Active state to Stopped state.
 		srv.state.mu.Unlock()
 		return
 	}
@@ -724,4 +771,17 @@ func (srv *Server) Stop() {
 	srv.logger.Info("Stopping processor")
 	srv.processor.stop()
 	srv.logger.Info("Processor stopped")
+}
+
+// Ping performs a ping against the redis connection.
+//
+// This is an alternative to the HealthCheckFunc available in the Config object.
+func (srv *Server) Ping() error {
+	srv.state.mu.Lock()
+	defer srv.state.mu.Unlock()
+	if srv.state.value == srvStateClosed {
+		return nil
+	}
+
+	return srv.broker.Ping()
 }

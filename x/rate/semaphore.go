@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/platacard/asynq"
-	"github.com/platacard/asynq/internal/base"
 	asynqcontext "github.com/platacard/asynq/internal/context"
 	"github.com/redis/go-redis/v9"
 )
@@ -111,5 +110,5 @@ func (s *Semaphore) Close() error {
 }
 
 func semaphoreKey(scope string) string {
-	return fmt.Sprintf("%s:sema:%s", base.GlobalPrefix, scope)
+	return "asynq:sema:" + scope
 }
