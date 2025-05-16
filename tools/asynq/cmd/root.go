@@ -11,20 +11,22 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/fatih/color"
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/platacard/asynq"
 	"github.com/platacard/asynq/internal/base"
 	"github.com/platacard/asynq/internal/rdb"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"golang.org/x/exp/utf8string"
+
+	homedir "github.com/mitchellh/go-homedir"
+	"github.com/spf13/viper"
 )
 
 var cfgFile string
@@ -33,15 +35,12 @@ var cfgFile string
 var (
 	uri      string
 	db       int
-	username string
 	password string
 
-	useRedisCluster       bool
-	clusterAddrs          string
-	tlsServerName         string
-	tlsInsecureSkipVerify bool
-
-	globalPrefix string
+	useRedisCluster bool
+	clusterAddrs    string
+	tlsServerName   string
+	insecure        bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -309,27 +308,23 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file to set flag defaut values (default is $HOME/.asynq.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&uri, "uri", "u", "127.0.0.1:6379", "Redis server URI")
 	rootCmd.PersistentFlags().IntVarP(&db, "db", "n", 0, "Redis database number (default is 0)")
-	rootCmd.PersistentFlags().StringVarP(&username, "username", "U", "", "Username to use when connecting to redis cluster")
-	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "Password to use when connecting to redis server/cluster")
+	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "Password to use when connecting to redis server")
 	rootCmd.PersistentFlags().BoolVar(&useRedisCluster, "cluster", false, "Connect to redis cluster")
 	rootCmd.PersistentFlags().StringVar(&clusterAddrs, "cluster_addrs",
 		"127.0.0.1:7000,127.0.0.1:7001,127.0.0.1:7002,127.0.0.1:7003,127.0.0.1:7004,127.0.0.1:7005",
 		"List of comma-separated redis server addresses")
 	rootCmd.PersistentFlags().StringVar(&tlsServerName, "tls_server",
 		"", "Server name for TLS validation")
-	rootCmd.PersistentFlags().StringVarP(&globalPrefix, "global_prefix", "", "asynq", "Prefix for all redis keys")
-	rootCmd.PersistentFlags().BoolVar(&tlsInsecureSkipVerify, "tls_insecure_skip_verify", false, "Skip TLS certificate verification")
+	rootCmd.PersistentFlags().BoolVar(&insecure, "insecure",
+		false, "Allow insecure TLS connection by skipping cert validation")
 	// Bind flags with config.
 	viper.BindPFlag("uri", rootCmd.PersistentFlags().Lookup("uri"))
 	viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db"))
-	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
 	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
 	viper.BindPFlag("cluster", rootCmd.PersistentFlags().Lookup("cluster"))
 	viper.BindPFlag("cluster_addrs", rootCmd.PersistentFlags().Lookup("cluster_addrs"))
 	viper.BindPFlag("tls_server", rootCmd.PersistentFlags().Lookup("tls_server"))
-	viper.BindPFlag("tls_insecure_skip_verify", rootCmd.PersistentFlags().Lookup("tls_insecure_skip_verify"))
-	viper.BindPFlag("global_prefix", rootCmd.PersistentFlags().Lookup("global_prefix"))
-
+	viper.BindPFlag("insecure", rootCmd.PersistentFlags().Lookup("insecure"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -356,12 +351,6 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
-
-	// After config is fully initialized, apply global settings.
-
-	if p := viper.GetString("global_prefix"); p != "" {
-		asynq.SetGlobalPrefix(p)
-	}
 }
 
 // createRDB creates a RDB instance using flag values and returns it.
@@ -371,7 +360,6 @@ func createRDB() *rdb.RDB {
 		addrs := strings.Split(viper.GetString("cluster_addrs"), ",")
 		c = redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs:     addrs,
-			Username:  viper.GetString("username"),
 			Password:  viper.GetString("password"),
 			TLSConfig: getTLSConfig(),
 		})
@@ -386,7 +374,12 @@ func createRDB() *rdb.RDB {
 	return rdb.NewRDB(c)
 }
 
-// createRDB creates a Inspector instance using flag values and returns it.
+// createClient creates a Client instance using flag values and returns it.
+func createClient() *asynq.Client {
+	return asynq.NewClient(getRedisConnOpt())
+}
+
+// createInspector creates a Inspector instance using flag values and returns it.
 func createInspector() *asynq.Inspector {
 	return asynq.NewInspector(getRedisConnOpt())
 }
@@ -396,7 +389,6 @@ func getRedisConnOpt() asynq.RedisConnOpt {
 		addrs := strings.Split(viper.GetString("cluster_addrs"), ",")
 		return asynq.RedisClusterClientOpt{
 			Addrs:     addrs,
-			Username:  viper.GetString("username"),
 			Password:  viper.GetString("password"),
 			TLSConfig: getTLSConfig(),
 		}
@@ -411,15 +403,10 @@ func getRedisConnOpt() asynq.RedisConnOpt {
 
 func getTLSConfig() *tls.Config {
 	tlsServer := viper.GetString("tls_server")
-	skipVerify := viper.GetBool("tls_insecure_skip_verify")
-	if tlsServer == "" && !skipVerify {
+	if tlsServer == "" {
 		return nil
 	}
-
-	return &tls.Config{
-		ServerName:         tlsServer,
-		InsecureSkipVerify: skipVerify,
-	}
+	return &tls.Config{ServerName: tlsServer, InsecureSkipVerify: viper.GetBool("insecure")}
 }
 
 // printTable is a helper function to print data in table format.
@@ -482,4 +469,38 @@ func isPrintable(data []byte) bool {
 		}
 	}
 	return !isAllSpace
+}
+
+// Helper to turn a command line flag into a duration
+func getDuration(cmd *cobra.Command, arg string) time.Duration {
+	durationStr, err := cmd.Flags().GetString(arg)
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+
+	return duration
+}
+
+// Helper to turn a command line flag into a time
+func getTime(cmd *cobra.Command, arg string) time.Time {
+	timeStr, err := cmd.Flags().GetString(arg)
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+
+	timeVal, err := time.Parse(time.RFC3339, timeStr)
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+
+	return timeVal
 }
