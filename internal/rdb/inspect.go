@@ -264,7 +264,9 @@ for i=1,2 do
     if (table.getn(ids) > 0) then
         for _, id in ipairs(ids) do
             local bytes = redis.call("MEMORY", "USAGE", ARGV[1] .. id)
-            sample_total = sample_total + bytes
+            if (bytes) then
+                sample_total = sample_total + bytes
+            end
         end
         local n = redis.call("LLEN", KEYS[i])
         local avg = sample_total / table.getn(ids)
@@ -281,7 +283,9 @@ for i=3,6 do
     if (table.getn(ids) > 0) then
         for _, id in ipairs(ids) do
             local bytes = redis.call("MEMORY", "USAGE", ARGV[1] .. id)
-            sample_total = sample_total + bytes
+            if (bytes) then
+                sample_total = sample_total + bytes
+            end
         end
         local n = redis.call("ZCARD", KEYS[i])
         local avg = sample_total / table.getn(ids)
