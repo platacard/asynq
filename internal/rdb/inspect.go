@@ -18,7 +18,7 @@ import (
 
 // AllQueues returns a list of all queue names.
 func (r *RDB) AllQueues() ([]string, error) {
-	return r.client.SMembers(context.Background(), base.AllQueues()).Result()
+	return r.client.SMembers(context.Background(), r.keys.AllQueues()).Result()
 }
 
 // Stats represents a state of queues at a certain time.
@@ -148,22 +148,22 @@ func (r *RDB) CurrentStats(qname string) (*Stats, error) {
 	}
 	now := r.clock.Now()
 	keys := []string{
-		base.PendingKey(qname),
-		base.ActiveKey(qname),
-		base.ScheduledKey(qname),
-		base.RetryKey(qname),
-		base.ArchivedKey(qname),
-		base.CompletedKey(qname),
-		base.ProcessedKey(qname, now),
-		base.FailedKey(qname, now),
-		base.ProcessedTotalKey(qname),
-		base.FailedTotalKey(qname),
-		base.PausedKey(qname),
-		base.AllGroups(qname),
+		r.keys.PendingKey(qname),
+		r.keys.ActiveKey(qname),
+		r.keys.ScheduledKey(qname),
+		r.keys.RetryKey(qname),
+		r.keys.ArchivedKey(qname),
+		r.keys.CompletedKey(qname),
+		r.keys.ProcessedKey(qname, now),
+		r.keys.FailedKey(qname, now),
+		r.keys.ProcessedTotalKey(qname),
+		r.keys.FailedTotalKey(qname),
+		r.keys.PausedKey(qname),
+		r.keys.AllGroups(qname),
 	}
 	argv := []interface{}{
-		base.TaskKeyPrefix(qname),
-		base.GroupKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
+		r.keys.GroupKeyPrefix(qname),
 	}
 	res, err := currentStatsCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -182,33 +182,33 @@ func (r *RDB) CurrentStats(qname string) (*Stats, error) {
 		key := cast.ToString(data[i])
 		val := cast.ToInt(data[i+1])
 		switch key {
-		case base.PendingKey(qname):
+		case r.keys.PendingKey(qname):
 			stats.Pending = val
 			size += val
-		case base.ActiveKey(qname):
+		case r.keys.ActiveKey(qname):
 			stats.Active = val
 			size += val
-		case base.ScheduledKey(qname):
+		case r.keys.ScheduledKey(qname):
 			stats.Scheduled = val
 			size += val
-		case base.RetryKey(qname):
+		case r.keys.RetryKey(qname):
 			stats.Retry = val
 			size += val
-		case base.ArchivedKey(qname):
+		case r.keys.ArchivedKey(qname):
 			stats.Archived = val
 			size += val
-		case base.CompletedKey(qname):
+		case r.keys.CompletedKey(qname):
 			stats.Completed = val
 			size += val
-		case base.ProcessedKey(qname, now):
+		case r.keys.ProcessedKey(qname, now):
 			stats.Processed = val
-		case base.FailedKey(qname, now):
+		case r.keys.FailedKey(qname, now):
 			stats.Failed = val
-		case base.ProcessedTotalKey(qname):
+		case r.keys.ProcessedTotalKey(qname):
 			stats.ProcessedTotal = val
-		case base.FailedTotalKey(qname):
+		case r.keys.FailedTotalKey(qname):
 			stats.FailedTotal = val
-		case base.PausedKey(qname):
+		case r.keys.PausedKey(qname):
 			if val == 0 {
 				stats.Paused = false
 			} else {
@@ -323,19 +323,19 @@ func (r *RDB) memoryUsage(qname string) (int64, error) {
 	)
 
 	keys := []string{
-		base.ActiveKey(qname),
-		base.PendingKey(qname),
-		base.ScheduledKey(qname),
-		base.RetryKey(qname),
-		base.ArchivedKey(qname),
-		base.CompletedKey(qname),
-		base.AllGroups(qname),
+		r.keys.ActiveKey(qname),
+		r.keys.PendingKey(qname),
+		r.keys.ScheduledKey(qname),
+		r.keys.RetryKey(qname),
+		r.keys.ArchivedKey(qname),
+		r.keys.CompletedKey(qname),
+		r.keys.AllGroups(qname),
 	}
 	argv := []interface{}{
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 		taskSampleSize,
 		groupSampleSize,
-		base.GroupKeyPrefix(qname),
+		r.keys.GroupKeyPrefix(qname),
 	}
 	res, err := memoryUsageCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -379,8 +379,8 @@ func (r *RDB) HistoricalStats(qname string, n int) ([]*DailyStats, error) {
 	for i := 0; i < n; i++ {
 		ts := now.Add(-time.Duration(i) * day)
 		days = append(days, ts)
-		keys = append(keys, base.ProcessedKey(qname, ts))
-		keys = append(keys, base.FailedKey(qname, ts))
+		keys = append(keys, r.keys.ProcessedKey(qname, ts))
+		keys = append(keys, r.keys.FailedKey(qname, ts))
 	}
 	res, err := historicalStatsCmd.Run(context.Background(), r.client, keys).Result()
 	if err != nil {
@@ -487,11 +487,11 @@ func (r *RDB) GetTaskInfo(qname, id string) (*base.TaskInfo, error) {
 	if err := r.checkQueueExists(qname); err != nil {
 		return nil, errors.E(op, errors.CanonicalCode(err), err)
 	}
-	keys := []string{base.TaskKey(qname, id)}
+	keys := []string{r.keys.TaskKey(qname, id)}
 	argv := []interface{}{
 		id,
 		r.clock.Now().Unix(),
-		base.QueueKeyPrefix(qname),
+		r.keys.QueueKeyPrefix(qname),
 	}
 	res, err := getTaskInfoCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -577,8 +577,8 @@ return res
 
 func (r *RDB) GroupStats(qname string) ([]*GroupStat, error) {
 	var op errors.Op = "RDB.GroupStats"
-	keys := []string{base.AllGroups(qname)}
-	argv := []interface{}{base.GroupKeyPrefix(qname)}
+	keys := []string{r.keys.AllGroups(qname)}
+	argv := []interface{}{r.keys.GroupKeyPrefix(qname)}
 	res, err := groupStatsCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
 		return nil, errors.E(op, errors.Unknown, err)
@@ -670,9 +670,9 @@ func (r *RDB) listMessages(qname string, state base.TaskState, pgn Pagination) (
 	var key string
 	switch state {
 	case base.TaskStateActive:
-		key = base.ActiveKey(qname)
+		key = r.keys.ActiveKey(qname)
 	case base.TaskStatePending:
-		key = base.PendingKey(qname)
+		key = r.keys.PendingKey(qname)
 	default:
 		panic(fmt.Sprintf("unsupported task state: %v", state))
 	}
@@ -681,7 +681,7 @@ func (r *RDB) listMessages(qname string, state base.TaskState, pgn Pagination) (
 	stop := -pgn.start() - 1
 	start := -pgn.stop() - 1
 	res, err := listMessagesCmd.Run(context.Background(), r.client,
-		[]string{key}, start, stop, base.TaskKeyPrefix(qname)).Result()
+		[]string{key}, start, stop, r.keys.TaskKeyPrefix(qname)).Result()
 	if err != nil {
 		return nil, errors.E(errors.Unknown, err)
 	}
@@ -726,7 +726,7 @@ func (r *RDB) ListScheduled(qname string, pgn Pagination) ([]*base.TaskInfo, err
 	if !exists {
 		return nil, errors.E(op, errors.NotFound, &errors.QueueNotFoundError{Queue: qname})
 	}
-	res, err := r.listZSetEntries(qname, base.TaskStateScheduled, base.ScheduledKey(qname), pgn)
+	res, err := r.listZSetEntries(qname, base.TaskStateScheduled, r.keys.ScheduledKey(qname), pgn)
 	if err != nil {
 		return nil, errors.E(op, errors.CanonicalCode(err), err)
 	}
@@ -744,7 +744,7 @@ func (r *RDB) ListRetry(qname string, pgn Pagination) ([]*base.TaskInfo, error) 
 	if !exists {
 		return nil, errors.E(op, errors.NotFound, &errors.QueueNotFoundError{Queue: qname})
 	}
-	res, err := r.listZSetEntries(qname, base.TaskStateRetry, base.RetryKey(qname), pgn)
+	res, err := r.listZSetEntries(qname, base.TaskStateRetry, r.keys.RetryKey(qname), pgn)
 	if err != nil {
 		return nil, errors.E(op, errors.CanonicalCode(err), err)
 	}
@@ -761,7 +761,7 @@ func (r *RDB) ListArchived(qname string, pgn Pagination) ([]*base.TaskInfo, erro
 	if !exists {
 		return nil, errors.E(op, errors.NotFound, &errors.QueueNotFoundError{Queue: qname})
 	}
-	zs, err := r.listZSetEntries(qname, base.TaskStateArchived, base.ArchivedKey(qname), pgn)
+	zs, err := r.listZSetEntries(qname, base.TaskStateArchived, r.keys.ArchivedKey(qname), pgn)
 	if err != nil {
 		return nil, errors.E(op, errors.CanonicalCode(err), err)
 	}
@@ -778,7 +778,7 @@ func (r *RDB) ListCompleted(qname string, pgn Pagination) ([]*base.TaskInfo, err
 	if !exists {
 		return nil, errors.E(op, errors.NotFound, &errors.QueueNotFoundError{Queue: qname})
 	}
-	zs, err := r.listZSetEntries(qname, base.TaskStateCompleted, base.CompletedKey(qname), pgn)
+	zs, err := r.listZSetEntries(qname, base.TaskStateCompleted, r.keys.CompletedKey(qname), pgn)
 	if err != nil {
 		return nil, errors.E(op, errors.CanonicalCode(err), err)
 	}
@@ -795,7 +795,7 @@ func (r *RDB) ListAggregating(qname, gname string, pgn Pagination) ([]*base.Task
 	if !exists {
 		return nil, errors.E(op, errors.NotFound, &errors.QueueNotFoundError{Queue: qname})
 	}
-	zs, err := r.listZSetEntries(qname, base.TaskStateAggregating, base.GroupKey(qname, gname), pgn)
+	zs, err := r.listZSetEntries(qname, base.TaskStateAggregating, r.keys.GroupKey(qname, gname), pgn)
 	if err != nil {
 		return nil, errors.E(op, errors.CanonicalCode(err), err)
 	}
@@ -804,7 +804,7 @@ func (r *RDB) ListAggregating(qname, gname string, pgn Pagination) ([]*base.Task
 
 // Reports whether a queue with the given name exists.
 func (r *RDB) queueExists(qname string) (bool, error) {
-	return r.client.SIsMember(context.Background(), base.AllQueues(), qname).Result()
+	return r.client.SIsMember(context.Background(), r.keys.AllQueues(), qname).Result()
 }
 
 // KEYS[1] -> key for ids set (e.g. asynq:{<qname>}:scheduled)
@@ -833,7 +833,7 @@ return data
 // with the given key.
 func (r *RDB) listZSetEntries(qname string, state base.TaskState, key string, pgn Pagination) ([]*base.TaskInfo, error) {
 	res, err := listZSetEntriesCmd.Run(context.Background(), r.client, []string{key},
-		pgn.start(), pgn.stop(), base.TaskKeyPrefix(qname)).Result()
+		pgn.start(), pgn.stop(), r.keys.TaskKeyPrefix(qname)).Result()
 	if err != nil {
 		return nil, errors.E(errors.Unknown, err)
 	}
@@ -882,7 +882,7 @@ func (r *RDB) listZSetEntries(qname string, state base.TaskState, key string, pg
 // If a queue with the given name doesn't exist, it returns QueueNotFoundError.
 func (r *RDB) RunAllScheduledTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.RunAllScheduledTasks"
-	n, err := r.runAll(base.ScheduledKey(qname), qname)
+	n, err := r.runAll(r.keys.ScheduledKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -897,7 +897,7 @@ func (r *RDB) RunAllScheduledTasks(qname string) (int64, error) {
 // If a queue with the given name doesn't exist, it returns QueueNotFoundError.
 func (r *RDB) RunAllRetryTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.RunAllRetryTasks"
-	n, err := r.runAll(base.RetryKey(qname), qname)
+	n, err := r.runAll(r.keys.RetryKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -912,7 +912,7 @@ func (r *RDB) RunAllRetryTasks(qname string) (int64, error) {
 // If a queue with the given name doesn't exist, it returns QueueNotFoundError.
 func (r *RDB) RunAllArchivedTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.RunAllArchivedTasks"
-	n, err := r.runAll(base.ArchivedKey(qname), qname)
+	n, err := r.runAll(r.keys.ArchivedKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -954,12 +954,12 @@ func (r *RDB) RunAllAggregatingTasks(qname, gname string) (int64, error) {
 		return 0, errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.GroupKey(qname, gname),
-		base.PendingKey(qname),
-		base.AllGroups(qname),
+		r.keys.GroupKey(qname, gname),
+		r.keys.PendingKey(qname),
+		r.keys.AllGroups(qname),
 	}
 	argv := []interface{}{
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 		gname,
 	}
 	res, err := runAllAggregatingCmd.Run(context.Background(), r.client, keys, argv...).Result()
@@ -1031,14 +1031,14 @@ func (r *RDB) RunTask(qname, id string) error {
 		return errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.TaskKey(qname, id),
-		base.PendingKey(qname),
-		base.AllGroups(qname),
+		r.keys.TaskKey(qname, id),
+		r.keys.PendingKey(qname),
+		r.keys.AllGroups(qname),
 	}
 	argv := []interface{}{
 		id,
-		base.QueueKeyPrefix(qname),
-		base.GroupKeyPrefix(qname),
+		r.keys.QueueKeyPrefix(qname),
+		r.keys.GroupKeyPrefix(qname),
 	}
 	res, err := runTaskCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -1088,10 +1088,10 @@ func (r *RDB) runAll(zset, qname string) (int64, error) {
 	}
 	keys := []string{
 		zset,
-		base.PendingKey(qname),
+		r.keys.PendingKey(qname),
 	}
 	argv := []interface{}{
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 	}
 	res, err := runAllCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -1112,7 +1112,7 @@ func (r *RDB) runAll(zset, qname string) (int64, error) {
 // If a queue with the given name doesn't exist, it returns QueueNotFoundError.
 func (r *RDB) ArchiveAllRetryTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.ArchiveAllRetryTasks"
-	n, err := r.archiveAll(base.RetryKey(qname), base.ArchivedKey(qname), qname)
+	n, err := r.archiveAll(r.keys.RetryKey(qname), r.keys.ArchivedKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -1127,7 +1127,7 @@ func (r *RDB) ArchiveAllRetryTasks(qname string) (int64, error) {
 // If a queue with the given name doesn't exist, it returns QueueNotFoundError.
 func (r *RDB) ArchiveAllScheduledTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.ArchiveAllScheduledTasks"
-	n, err := r.archiveAll(base.ScheduledKey(qname), base.ArchivedKey(qname), qname)
+	n, err := r.archiveAll(r.keys.ScheduledKey(qname), r.keys.ArchivedKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -1174,16 +1174,16 @@ func (r *RDB) ArchiveAllAggregatingTasks(qname, gname string) (int64, error) {
 		return 0, errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.GroupKey(qname, gname),
-		base.ArchivedKey(qname),
-		base.AllGroups(qname),
+		r.keys.GroupKey(qname, gname),
+		r.keys.ArchivedKey(qname),
+		r.keys.AllGroups(qname),
 	}
 	now := r.clock.Now()
 	argv := []interface{}{
 		now.Unix(),
 		now.AddDate(0, 0, -archivedExpirationInDays).Unix(),
 		maxArchiveSize,
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 		gname,
 	}
 	res, err := archiveAllAggregatingCmd.Run(context.Background(), r.client, keys, argv...).Result()
@@ -1231,15 +1231,15 @@ func (r *RDB) ArchiveAllPendingTasks(qname string) (int64, error) {
 		return 0, errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.PendingKey(qname),
-		base.ArchivedKey(qname),
+		r.keys.PendingKey(qname),
+		r.keys.ArchivedKey(qname),
 	}
 	now := r.clock.Now()
 	argv := []interface{}{
 		now.Unix(),
 		now.AddDate(0, 0, -archivedExpirationInDays).Unix(),
 		maxArchiveSize,
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 	}
 	res, err := archiveAllPendingCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -1320,9 +1320,9 @@ func (r *RDB) ArchiveTask(qname, id string) error {
 		return errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.TaskKey(qname, id),
-		base.ArchivedKey(qname),
-		base.AllGroups(qname),
+		r.keys.TaskKey(qname, id),
+		r.keys.ArchivedKey(qname),
+		r.keys.AllGroups(qname),
 	}
 	now := r.clock.Now()
 	argv := []interface{}{
@@ -1330,8 +1330,8 @@ func (r *RDB) ArchiveTask(qname, id string) error {
 		now.Unix(),
 		now.AddDate(0, 0, -archivedExpirationInDays).Unix(),
 		maxArchiveSize,
-		base.QueueKeyPrefix(qname),
-		base.GroupKeyPrefix(qname),
+		r.keys.QueueKeyPrefix(qname),
+		r.keys.GroupKeyPrefix(qname),
 	}
 	res, err := archiveTaskCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -1395,7 +1395,7 @@ func (r *RDB) archiveAll(src, dst, qname string) (int64, error) {
 		now.Unix(),
 		now.AddDate(0, 0, -archivedExpirationInDays).Unix(),
 		maxArchiveSize,
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 		qname,
 	}
 	res, err := archiveAllCmd.Run(context.Background(), r.client, keys, argv...).Result()
@@ -1555,13 +1555,13 @@ func (r *RDB) DeleteTask(qname, id string) error {
 		return errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.TaskKey(qname, id),
-		base.AllGroups(qname),
+		r.keys.TaskKey(qname, id),
+		r.keys.AllGroups(qname),
 	}
 	argv := []interface{}{
 		id,
-		base.QueueKeyPrefix(qname),
-		base.GroupKeyPrefix(qname),
+		r.keys.QueueKeyPrefix(qname),
+		r.keys.GroupKeyPrefix(qname),
 	}
 	res, err := deleteTaskCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -1587,7 +1587,7 @@ func (r *RDB) DeleteTask(qname, id string) error {
 // and returns the number of tasks deleted.
 func (r *RDB) DeleteAllArchivedTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.DeleteAllArchivedTasks"
-	n, err := r.deleteAll(base.ArchivedKey(qname), qname)
+	n, err := r.deleteAll(r.keys.ArchivedKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -1601,7 +1601,7 @@ func (r *RDB) DeleteAllArchivedTasks(qname string) (int64, error) {
 // and returns the number of tasks deleted.
 func (r *RDB) DeleteAllRetryTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.DeleteAllRetryTasks"
-	n, err := r.deleteAll(base.RetryKey(qname), qname)
+	n, err := r.deleteAll(r.keys.RetryKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -1615,7 +1615,7 @@ func (r *RDB) DeleteAllRetryTasks(qname string) (int64, error) {
 // and returns the number of tasks deleted.
 func (r *RDB) DeleteAllScheduledTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.DeleteAllScheduledTasks"
-	n, err := r.deleteAll(base.ScheduledKey(qname), qname)
+	n, err := r.deleteAll(r.keys.ScheduledKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -1629,7 +1629,7 @@ func (r *RDB) DeleteAllScheduledTasks(qname string) (int64, error) {
 // and returns the number of tasks deleted.
 func (r *RDB) DeleteAllCompletedTasks(qname string) (int64, error) {
 	var op errors.Op = "rdb.DeleteAllCompletedTasks"
-	n, err := r.deleteAll(base.CompletedKey(qname), qname)
+	n, err := r.deleteAll(r.keys.CompletedKey(qname), qname)
 	if errors.IsQueueNotFound(err) {
 		return 0, errors.E(op, errors.NotFound, err)
 	}
@@ -1666,7 +1666,7 @@ func (r *RDB) deleteAll(key, qname string) (int64, error) {
 		return 0, err
 	}
 	argv := []interface{}{
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 		qname,
 	}
 	res, err := deleteAllCmd.Run(context.Background(), r.client, []string{key}, argv...).Result()
@@ -1706,11 +1706,11 @@ func (r *RDB) DeleteAllAggregatingTasks(qname, gname string) (int64, error) {
 		return 0, errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.GroupKey(qname, gname),
-		base.AllGroups(qname),
+		r.keys.GroupKey(qname, gname),
+		r.keys.AllGroups(qname),
 	}
 	argv := []interface{}{
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 		gname,
 	}
 	res, err := deleteAllAggregatingCmd.Run(context.Background(), r.client, keys, argv...).Result()
@@ -1749,10 +1749,10 @@ func (r *RDB) DeleteAllPendingTasks(qname string) (int64, error) {
 		return 0, errors.E(op, errors.CanonicalCode(err), err)
 	}
 	keys := []string{
-		base.PendingKey(qname),
+		r.keys.PendingKey(qname),
 	}
 	argv := []interface{}{
-		base.TaskKeyPrefix(qname),
+		r.keys.TaskKeyPrefix(qname),
 	}
 	res, err := deleteAllPendingCmd.Run(context.Background(), r.client, keys, argv...).Result()
 	if err != nil {
@@ -1899,14 +1899,14 @@ func (r *RDB) RemoveQueue(qname string, force bool) error {
 		script = removeQueueCmd
 	}
 	keys := []string{
-		base.PendingKey(qname),
-		base.ActiveKey(qname),
-		base.ScheduledKey(qname),
-		base.RetryKey(qname),
-		base.ArchivedKey(qname),
-		base.LeaseKey(qname),
+		r.keys.PendingKey(qname),
+		r.keys.ActiveKey(qname),
+		r.keys.ScheduledKey(qname),
+		r.keys.RetryKey(qname),
+		r.keys.ArchivedKey(qname),
+		r.keys.LeaseKey(qname),
 	}
-	res, err := script.Run(context.Background(), r.client, keys, base.TaskKeyPrefix(qname)).Result()
+	res, err := script.Run(context.Background(), r.client, keys, r.keys.TaskKeyPrefix(qname)).Result()
 	if err != nil {
 		return errors.E(op, errors.Unknown, err)
 	}
@@ -1916,7 +1916,7 @@ func (r *RDB) RemoveQueue(qname string, force bool) error {
 	}
 	switch n {
 	case 1:
-		if err := r.client.SRem(context.Background(), base.AllQueues(), qname).Err(); err != nil {
+		if err := r.client.SRem(context.Background(), r.keys.AllQueues(), qname).Err(); err != nil {
 			return errors.E(op, errors.Unknown, err)
 		}
 		r.queuesPublished.Delete(qname)
@@ -1940,7 +1940,7 @@ return keys`)
 // ListServers returns the list of server info.
 func (r *RDB) ListServers() ([]*base.ServerInfo, error) {
 	now := r.clock.Now()
-	res, err := listServerKeysCmd.Run(context.Background(), r.client, []string{base.AllServers()}, now.Unix()).Result()
+	res, err := listServerKeysCmd.Run(context.Background(), r.client, []string{r.keys.AllServers()}, now.Unix()).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -1974,7 +1974,7 @@ return keys`)
 func (r *RDB) ListWorkers() ([]*base.WorkerInfo, error) {
 	var op errors.Op = "rdb.ListWorkers"
 	now := r.clock.Now()
-	res, err := listWorkersCmd.Run(context.Background(), r.client, []string{base.AllWorkers()}, now.Unix()).Result()
+	res, err := listWorkersCmd.Run(context.Background(), r.client, []string{r.keys.AllWorkers()}, now.Unix()).Result()
 	if err != nil {
 		return nil, errors.E(op, errors.Unknown, err)
 	}
@@ -2009,7 +2009,7 @@ return keys`)
 // ListSchedulerEntries returns the list of scheduler entries.
 func (r *RDB) ListSchedulerEntries() ([]*base.SchedulerEntry, error) {
 	now := r.clock.Now()
-	res, err := listSchedulerKeysCmd.Run(context.Background(), r.client, []string{base.AllSchedulers()}, now.Unix()).Result()
+	res, err := listSchedulerKeysCmd.Run(context.Background(), r.client, []string{r.keys.AllSchedulers()}, now.Unix()).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -2036,7 +2036,7 @@ func (r *RDB) ListSchedulerEntries() ([]*base.SchedulerEntry, error) {
 
 // ListSchedulerEnqueueEvents returns the list of scheduler enqueue events.
 func (r *RDB) ListSchedulerEnqueueEvents(entryID string, pgn Pagination) ([]*base.SchedulerEnqueueEvent, error) {
-	key := base.SchedulerHistoryKey(entryID)
+	key := r.keys.SchedulerHistoryKey(entryID)
 	zs, err := r.client.ZRevRangeWithScores(context.Background(), key, pgn.start(), pgn.stop()).Result()
 	if err != nil {
 		return nil, err
@@ -2058,7 +2058,7 @@ func (r *RDB) ListSchedulerEnqueueEvents(entryID string, pgn Pagination) ([]*bas
 
 // Pause pauses processing of tasks from the given queue.
 func (r *RDB) Pause(qname string) error {
-	key := base.PausedKey(qname)
+	key := r.keys.PausedKey(qname)
 	ok, err := r.client.SetNX(context.Background(), key, r.clock.Now().Unix(), 0).Result()
 	if err != nil {
 		return err
@@ -2071,7 +2071,7 @@ func (r *RDB) Pause(qname string) error {
 
 // Unpause resumes processing of tasks from the given queue.
 func (r *RDB) Unpause(qname string) error {
-	key := base.PausedKey(qname)
+	key := r.keys.PausedKey(qname)
 	deleted, err := r.client.Del(context.Background(), key).Result()
 	if err != nil {
 		return err
@@ -2084,7 +2084,7 @@ func (r *RDB) Unpause(qname string) error {
 
 // ClusterKeySlot returns an integer identifying the hash slot the given queue hashes to.
 func (r *RDB) ClusterKeySlot(qname string) (int64, error) {
-	key := base.PendingKey(qname)
+	key := r.keys.PendingKey(qname)
 	return r.client.ClusterKeySlot(context.Background(), key).Result()
 }
 

@@ -26,21 +26,22 @@ type Inspector struct {
 }
 
 // New returns a new instance of Inspector.
-func NewInspector(r RedisConnOpt) *Inspector {
+func NewInspector(r RedisConnOpt, opts ...ConnOption) *Inspector {
 	c, ok := r.MakeRedisClient().(redis.UniversalClient)
 	if !ok {
 		panic(fmt.Sprintf("inspeq: unsupported RedisConnOpt type %T", r))
 	}
-	inspector := NewInspectorFromRedisClient(c)
+	inspector := NewInspectorFromRedisClient(c, opts...)
 	inspector.sharedConnection = false
 	return inspector
 }
 
 // NewInspectorFromRedisClient returns a new instance of Inspector given a redis.UniversalClient
 // Warning: The underlying redis connection pool will not be closed by Asynq, you are responsible for closing it.
-func NewInspectorFromRedisClient(c redis.UniversalClient) *Inspector {
+func NewInspectorFromRedisClient(c redis.UniversalClient, opts ...ConnOption) *Inspector {
+	cfg := composeConnOptions(opts...)
 	return &Inspector{
-		rdb:              rdb.NewRDB(c),
+		rdb:              rdb.NewRDBWithPrefix(c, cfg.redisKeyPrefix),
 		sharedConnection: true,
 	}
 }
