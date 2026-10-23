@@ -13,9 +13,9 @@
 This is the Plata fork of [hibiken/asynq](https://github.com/hibiken/asynq). It stays as close to upstream as possible and
 adds only a few changes we need.
 
-**Upstream base:** [`c327bc4`](https://github.com/hibiken/asynq/commit/c327bc40a28e4db45195cfe082d88faa808ce87d)
-(`docs: Update server.go (#1010)`, 2025-03-31), which is `v0.25.1` plus two doc-only commits. It was last merged in
-[#7](https://github.com/platacard/asynq/pull/7). Run `git diff c327bc4 HEAD` to see the full delta.
+**Upstream base:** [`v0.26.0`](https://github.com/hibiken/asynq/releases/tag/v0.26.0)
+([`d704b68`](https://github.com/hibiken/asynq/commit/d704b68a426d1d3a6c707f9661d29296e1350775), 2026-02-03).
+Run `git diff v0.26.0 HEAD` to see the full delta (requires the upstream remote with tags).
 
 ### Differences from upstream
 
@@ -52,31 +52,35 @@ Caveats:
 #### 2. CLI (`tools/asynq`) additions
 
 - `--global_prefix` (default `asynq`): the Redis key prefix, see above. It can also be set in the config file.
-- `--username` / `-U`: the Redis ACL username. It is applied only in cluster mode (`--cluster`).
 
-The commit that added these flags also had a `tls_insecure_skip_verify` option. During the merge with v0.25.1 it was
-replaced by upstream's `--insecure` flag, which does the same thing.
+The fork used to add `--username` and `tls_insecure_skip_verify` as well. Upstream now has equivalents (`--username`
+since v0.26.0, `--insecure` since v0.25.1), so the fork uses those instead.
 
 #### 3. Module path and repository plumbing
 
 - The module path is `github.com/platacard/asynq` (also `.../x` and `.../tools`). Imports, `go_package` in
   `internal/proto/asynq.proto`, the `Makefile` proto target, and the links in docs and the CLI help point to the fork.
 - `x/go.mod` and `tools/go.mod` use `replace` directives that point at the local root module, so the submodules are
-  always built against the fork's code. Because of that, the `tools` dependencies are newer than upstream's
-  (e.g. `prometheus/client_golang` v1.20.5).
-- CI: `golangci-lint` was bumped from v1.61 to v1.64.
-- `.tool-versions` was added (`golang 1.22`).
+  always built against the fork's code. Because of that, the `x` and `tools` dependencies and `go` directives match
+  the root module and are newer than upstream's (e.g. `go 1.24.0`, `prometheus/client_golang` v1.20.5).
+- CI: `golangci-lint` is pinned to v1.64 instead of v1.61. Upstream has disabled the lint job (`if: false`), and the
+  fork keeps it disabled.
+- `.tool-versions` was added (`golang 1.24.13`).
 - `CONTRIBUTING.md` has a "Tests" section that explains how to run the test suite against a local Redis in Docker.
 
-There are no other behavioral changes. The remaining diff is gofmt reformatting of a few doc comments.
+There are no other changes.
 
 ### Syncing with upstream
 
-1. Merge the target upstream commit or tag into a branch of the fork.
+1. Add the upstream remote (`git remote add upstream https://github.com/hibiken/asynq.git`), fetch tags, and merge
+   the target tag into a branch of the fork.
 2. Resolve conflicts. Rewrite `github.com/hibiken/asynq` imports to `github.com/platacard/asynq`. Any new code that
    builds Redis keys must use `base.GlobalPrefix` or the `base.*Key` helpers instead of a literal `"asynq:"`.
-3. Run the tests (see [CONTRIBUTING.md](/CONTRIBUTING.md#tests)).
-4. Update the **Upstream base** commit in this section.
+3. If upstream regenerated `internal/proto/asynq.pb.go`, regenerate it with `make proto` so the embedded
+   `go_package` points to the fork.
+4. Run `go mod tidy` in `x` and `tools`, then run the tests in all three modules (see
+   [CONTRIBUTING.md](/CONTRIBUTING.md#tests)).
+5. Update the **Upstream base** in this section.
 
 Asynq is a Go library for queueing tasks and processing them asynchronously with workers. It's backed by [Redis](https://redis.io/) and is designed to be scalable yet easy to get started.
 
