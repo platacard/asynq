@@ -62,6 +62,18 @@ func TestRedisKeyPrefixIsolatesInstances(t *testing.T) {
 		t.Errorf("inspector with global prefix sees queues %v, want none", queues)
 	}
 
+	scheduledB, err := clientB.Enqueue(NewTask("b-scheduled", nil), ProcessIn(time.Hour))
+	if err != nil {
+		t.Fatalf("clientB.Enqueue(scheduled): %v", err)
+	}
+	if err := inspectorB.UpdateTaskPayload(qname, scheduledB.ID, []byte("updated")); err != nil {
+		t.Errorf("inspectorB.UpdateTaskPayload(own task): %v", err)
+	} else if info, err := inspectorB.GetTaskInfo(qname, scheduledB.ID); err != nil {
+		t.Errorf("inspectorB.GetTaskInfo after update: %v", err)
+	} else if string(info.Payload) != "updated" {
+		t.Errorf("payload after UpdateTaskPayload = %q, want %q", info.Payload, "updated")
+	}
+
 	processed := make(chan string, 2)
 	srv := NewServerFromRedisClient(r, Config{
 		Concurrency:    1,

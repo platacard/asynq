@@ -1473,7 +1473,7 @@ func (r *RDB) UpdateTaskPayload(qname, id string, payload []byte) error {
 		return errors.E(op, errors.Unknown, fmt.Sprintf("cannot encode message: %v", err))
 	}
 	keys := []string{
-		base.TaskKey(qname, id),
+		r.keys.TaskKey(qname, id),
 	}
 	argv := []interface{}{
 		encoded,
