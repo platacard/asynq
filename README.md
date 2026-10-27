@@ -8,6 +8,80 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Gitter chat](https://badges.gitter.im/go-asynq/gitter.svg)](https://gitter.im/go-asynq/community)
 
+## About this fork
+
+This is the Plata fork of [hibiken/asynq](https://github.com/hibiken/asynq). It stays as close to upstream as possible and
+adds only a few changes we need.
+
+**Upstream base:** [`v0.26.0`](https://github.com/hibiken/asynq/releases/tag/v0.26.0)
+([`d704b68`](https://github.com/hibiken/asynq/commit/d704b68a426d1d3a6c707f9661d29296e1350775), 2026-02-03).
+Run `git diff v0.26.0 HEAD` to see the full delta (requires the upstream remote with tags).
+
+### Differences from upstream
+
+#### 1. Configurable Redis key prefix
+
+Upstream hardcodes the `asynq` prefix for every Redis key. The fork lets you change it, so several independent asynq
+installations can share one Redis (or Redis Cluster) without key collisions.
+
+- New public function `asynq.SetGlobalPrefix(prefix string)` (`asynq.go`).
+- `internal/base`: the hardcoded `asynq` prefix is replaced by the `base.GlobalPrefix` variable (default `"asynq"`).
+  The global key constants `AllServers`, `AllWorkers`, `AllSchedulers`, `AllQueues`, and `CancelChannel` are now
+  functions, because their value depends on the prefix.
+- The prefix applies to all keys: queue keys (`<prefix>:{<qname>}:...`), servers, workers, schedulers, scheduler
+  history, the cancelation pub/sub channel, and the `x/rate` semaphore keys (`<prefix>:sema:<scope>`).
+
+```go
+func main() {
+    // Call this once, before you create any Client, Server, Scheduler, or Inspector.
+    asynq.SetGlobalPrefix("myservice")
+
+    srv := asynq.NewServer(redisOpt, asynq.Config{ /* ... */ })
+    // ...
+}
+```
+
+Caveats:
+
+- The prefix is process-wide. `SetGlobalPrefix` is guarded by `sync.Once`, so only the first call has an effect.
+- Every party that works with the same queues (producers, workers, scheduler, inspector, CLI, Web UI) must use the
+  same prefix. Otherwise they will not see each other's data.
+- With the default prefix, the key layout is identical to upstream, so the fork is compatible with existing data and
+  with upstream tooling.
+
+#### 2. CLI (`tools/asynq`) additions
+
+- `--global_prefix` (default `asynq`): the Redis key prefix, see above. It can also be set in the config file.
+
+The fork used to add `--username` and `tls_insecure_skip_verify` as well. Upstream now has equivalents (`--username`
+since v0.26.0, `--insecure` since v0.25.1), so the fork uses those instead.
+
+#### 3. Module path and repository plumbing
+
+- The module path is `github.com/platacard/asynq` (also `.../x` and `.../tools`). Imports, `go_package` in
+  `internal/proto/asynq.proto`, the `Makefile` proto target, and the links in docs and the CLI help point to the fork.
+- `x/go.mod` and `tools/go.mod` use `replace` directives that point at the local root module, so the submodules are
+  always built against the fork's code. Because of that, the `x` and `tools` dependencies and `go` directives match
+  the root module and are newer than upstream's (e.g. `go 1.24.0`, `prometheus/client_golang` v1.20.5).
+- CI: `golangci-lint` is pinned to v1.64 instead of v1.61. Upstream has disabled the lint job (`if: false`), and the
+  fork keeps it disabled.
+- `.tool-versions` was added (`golang 1.24.13`).
+- `CONTRIBUTING.md` has a "Tests" section that explains how to run the test suite against a local Redis in Docker.
+
+There are no other changes.
+
+### Syncing with upstream
+
+1. Add the upstream remote (`git remote add upstream https://github.com/hibiken/asynq.git`), fetch tags, and merge
+   the target tag into a branch of the fork.
+2. Resolve conflicts. Rewrite `github.com/hibiken/asynq` imports to `github.com/platacard/asynq`. Any new code that
+   builds Redis keys must use `base.GlobalPrefix` or the `base.*Key` helpers instead of a literal `"asynq:"`.
+3. If upstream regenerated `internal/proto/asynq.pb.go`, regenerate it with `make proto` so the embedded
+   `go_package` points to the fork.
+4. Run `go mod tidy` in `x` and `tools`, then run the tests in all three modules (see
+   [CONTRIBUTING.md](/CONTRIBUTING.md#tests)).
+5. Update the **Upstream base** in this section.
+
 Asynq is a Go library for queueing tasks and processing them asynchronously with workers. It's backed by [Redis](https://redis.io/) and is designed to be scalable yet easy to get started.
 
 Highlevel overview of how Asynq works:

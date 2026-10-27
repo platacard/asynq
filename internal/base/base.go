@@ -23,7 +23,7 @@ import (
 )
 
 // Version of asynq library and CLI.
-const Version = "0.25.1"
+const Version = "0.26.0"
 
 // DefaultQueueName is the queue name used if none are specified by user.
 const DefaultQueueName = "default"
@@ -254,6 +254,9 @@ type TaskMessage struct {
 	// Payload holds data needed to process the task.
 	Payload []byte
 
+	// Headers holds additional metadata for the task.
+	Headers map[string]string
+
 	// ID is a unique identifier for each task.
 	ID string
 
@@ -318,6 +321,7 @@ func EncodeMessage(msg *TaskMessage) ([]byte, error) {
 	return proto.Marshal(&pb.TaskMessage{
 		Type:         msg.Type,
 		Payload:      msg.Payload,
+		Headers:      msg.Headers,
 		Id:           msg.ID,
 		Queue:        msg.Queue,
 		Retry:        int32(msg.Retry),
@@ -342,6 +346,7 @@ func DecodeMessage(data []byte) (*TaskMessage, error) {
 	return &TaskMessage{
 		Type:         pbmsg.GetType(),
 		Payload:      pbmsg.GetPayload(),
+		Headers:      pbmsg.GetHeaders(),
 		ID:           pbmsg.GetId(),
 		Queue:        pbmsg.GetQueue(),
 		Retry:        int(pbmsg.GetRetry()),
