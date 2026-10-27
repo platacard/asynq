@@ -577,6 +577,32 @@ func (w *ResultWriter) TaskID() string {
 	return w.id
 }
 
+// ConnOption configures how a Client or an Inspector works with redis.
+type ConnOption func(*connOptions)
+
+type connOptions struct {
+	redisKeyPrefix string
+}
+
+// WithRedisKeyPrefix sets the prefix for all redis keys used by a Client or an Inspector.
+//
+// Unlike SetGlobalPrefix, it affects only the instance it is passed to, so
+// instances with different prefixes can be used in the same process.
+// If prefix is empty, the global prefix is used.
+func WithRedisKeyPrefix(prefix string) ConnOption {
+	return func(o *connOptions) {
+		o.redisKeyPrefix = prefix
+	}
+}
+
+func composeConnOptions(opts ...ConnOption) connOptions {
+	var res connOptions
+	for _, opt := range opts {
+		opt(&res)
+	}
+	return res
+}
+
 var globalPrefixOnce sync.Once
 
 // SetGlobalPrefix sets the global prefix for all redis keys used by asynq.

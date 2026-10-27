@@ -252,6 +252,14 @@ type Config struct {
 	// If unset or zero, default batch size of 100 is used.
 	// Make sure to not put a big number as the batch size to prevent a long-running script.
 	JanitorBatchSize int
+
+	// RedisKeyPrefix specifies the prefix for all redis keys used by the server.
+	//
+	// Clients, inspectors and schedulers working with the same tasks
+	// must use the same prefix.
+	//
+	// If unset or empty, the global prefix is used (see SetGlobalPrefix).
+	RedisKeyPrefix string
 }
 
 // GroupAggregator aggregates a group of tasks into one before the tasks are passed to the Handler.
@@ -503,7 +511,7 @@ func NewServerFromRedisClient(c redis.UniversalClient, cfg Config) *Server {
 	}
 	logger.SetLevel(toInternalLogLevel(loglevel))
 
-	rdb := rdb.NewRDB(c)
+	rdb := rdb.NewRDBWithPrefix(c, cfg.RedisKeyPrefix)
 	starting := make(chan *workerInfo)
 	finished := make(chan *base.TaskMessage)
 	syncCh := make(chan *syncRequest)
@@ -544,6 +552,7 @@ func NewServerFromRedisClient(c redis.UniversalClient, cfg Config) *Server {
 	processor := newProcessor(processorParams{
 		logger:            logger,
 		broker:            rdb,
+		keys:              rdb.Keys(),
 		retryDelayFunc:    delayFunc,
 		taskCheckInterval: taskCheckInterval,
 		baseCtxFn:         baseCtxFn,
