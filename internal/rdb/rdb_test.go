@@ -131,11 +131,13 @@ func TestEnqueueTaskIdConflictError(t *testing.T) {
 	m1 := base.TaskMessage{
 		ID:      "custom_id",
 		Type:    "foo",
+		Queue:   "default",
 		Payload: nil,
 	}
 	m2 := base.TaskMessage{
 		ID:      "custom_id",
 		Type:    "bar",
+		Queue:   "default",
 		Payload: nil,
 	}
 
@@ -314,14 +316,16 @@ func TestEnqueueUniqueTaskIdConflictError(t *testing.T) {
 	m1 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "foo",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_one",
+		UniqueKey: base.UniqueKey("default", "foo", nil),
 	}
 	m2 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "bar",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_two",
+		UniqueKey: base.UniqueKey("default", "bar", nil),
 	}
 	const ttl = 30 * time.Second
 
@@ -1295,14 +1299,16 @@ func TestAddToGroupeTaskIdConflictError(t *testing.T) {
 	m1 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "foo",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_one",
+		UniqueKey: base.UniqueKey("default", "foo", nil),
 	}
 	m2 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "bar",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_two",
+		UniqueKey: base.UniqueKey("default", "bar", nil),
 	}
 	const groupKey = "mygroup"
 
@@ -1418,14 +1424,16 @@ func TestAddToGroupUniqueTaskIdConflictError(t *testing.T) {
 	m1 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "foo",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_one",
+		UniqueKey: base.UniqueKey("default", "foo", nil),
 	}
 	m2 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "bar",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_two",
+		UniqueKey: base.UniqueKey("default", "bar", nil),
 	}
 	const groupKey = "mygroup"
 	const ttl = 30 * time.Second
@@ -1516,14 +1524,16 @@ func TestScheduleTaskIdConflictError(t *testing.T) {
 	m1 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "foo",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_one",
+		UniqueKey: base.UniqueKey("default", "foo", nil),
 	}
 	m2 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "bar",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_two",
+		UniqueKey: base.UniqueKey("default", "bar", nil),
 	}
 	processAt := time.Now().Add(30 * time.Second)
 
@@ -1641,14 +1651,16 @@ func TestScheduleUniqueTaskIdConflictError(t *testing.T) {
 	m1 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "foo",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_one",
+		UniqueKey: base.UniqueKey("default", "foo", nil),
 	}
 	m2 := base.TaskMessage{
 		ID:        "custom_id",
 		Type:      "bar",
+		Queue:     "default",
 		Payload:   nil,
-		UniqueKey: "unique_key_two",
+		UniqueKey: base.UniqueKey("default", "bar", nil),
 	}
 	const ttl = 30 * time.Second
 	processAt := time.Now().Add(30 * time.Second)
