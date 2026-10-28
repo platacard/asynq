@@ -45,7 +45,7 @@ Thank you! We'll try to respond as quickly as possible.
 6. Create a new pull request
 
 Please try to keep your pull request focused in scope and avoid including unrelated commits.
-Please run tests against redis cluster locally with `--redis_cluster` flag to ensure that code works for Redis cluster. TODO: Run tests using Redis cluster on CI.
+Please run tests against redis cluster locally with `make test-cluster` to ensure that code works for Redis cluster. TODO: Run tests using Redis cluster on CI.
 
 After you have submitted your pull request, we'll try to get back to you as soon as possible. We may suggest some changes or improvements.
 
@@ -53,16 +53,25 @@ Thank you for contributing!
 
 ## Tests
 
-To run tests, you need redis.
+To run tests, you need redis. `make test-standalone` starts a throwaway redis, runs the tests of the core and `x` modules
+against it, and removes it afterwards, so the tests never touch a redis used for development:
 
-Run redis:
+```shell
+make test-standalone                                 # standalone redis
+make test-cluster                                    # redis cluster with 3 masters
+make test-standalone TEST_ARGS='-run KeyPrefix -v'   # extra go test flags
+```
+
+Redis runs in docker (`redis:7`, the same image as in CI) if the docker daemon is available, otherwise `redis-server`
+from `PATH` is used. See `scripts/test.sh` for other settings.
+
+The tests that use redis run with several parallel workers, each against its own redis or cluster, so a full run takes
+about a minute and a half instead of about four minutes. With `-run` in `TEST_ARGS`, the tests run one by one against a
+single redis.
+
+To run tests against your own redis instead, start it on `localhost:6379` (the default address in the tests):
 
 ```shell
 docker run -d --name asynq-redis -p 6379:6379 redis:7
-```
-
-Run tests:
-
-```shell
 go test -v ./...
 ```
