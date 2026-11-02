@@ -96,13 +96,10 @@ func TestRedisKeyPrefixIsolatesInstances(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("server with prefix A did not process its task")
 	}
-	select {
-	case typ := <-processed:
-		t.Errorf("server with prefix A processed unexpected task %q", typ)
-	case <-time.After(2 * time.Second):
-	}
-	if _, err := inspectorB.GetTaskInfo(qname, infoB.ID); err != nil {
+	if info, err := inspectorB.GetTaskInfo(qname, infoB.ID); err != nil {
 		t.Errorf("task of prefix B was touched by server with prefix A: %v", err)
+	} else if info.State != TaskStatePending {
+		t.Errorf("task of prefix B is in state %v, want %v", info.State, TaskStatePending)
 	}
 }
 
@@ -132,4 +129,62 @@ func TestSchedulerRedisKeyPrefix(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	t.Fatal("scheduler with custom prefix did not enqueue a task under that prefix")
+}
+
+func TestAggregatorRedisKeyPrefix(t *testing.T) {
+	r := setup(t)
+	defer r.Close()
+
+	const (
+		prefix = "svc-agg:asynq"
+		qname  = "default"
+	)
+	ctx := context.Background()
+
+	client := NewClientFromRedisClient(r, WithRedisKeyPrefix(prefix))
+	for i := 0; i < 2; i++ {
+		if _, err := client.Enqueue(NewTask("item", []byte{byte(i)}), Group("g")); err != nil {
+			t.Fatalf("client.Enqueue: %v", err)
+		}
+	}
+
+	aggregated := NewTask("agg", nil, Unique(time.Hour))
+	srv := NewServerFromRedisClient(r, Config{
+		Concurrency:      1,
+		LogLevel:         testLogLevel,
+		RedisKeyPrefix:   prefix,
+		GroupGracePeriod: time.Second,
+		GroupMaxSize:     2,
+		GroupAggregator: GroupAggregatorFunc(func(group string, tasks []*Task) *Task {
+			return aggregated
+		}),
+	})
+	// Block the handler so that the unique lock of the aggregated task is not released.
+	started := make(chan string, 1)
+	release := make(chan struct{})
+	if err := srv.Start(HandlerFunc(func(ctx context.Context, task *Task) error {
+		started <- task.Type()
+		<-release
+		return nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Shutdown()
+	defer close(release)
+
+	select {
+	case typ := <-started:
+		if typ != "agg" {
+			t.Fatalf("handler got task %q, want aggregated task %q", typ, "agg")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("server did not process the aggregated task")
+	}
+
+	if uniqueKey := base.NewKeys(prefix).UniqueKey(qname, "agg", nil); r.Exists(ctx, uniqueKey).Val() != 1 {
+		t.Errorf("unique key %q does not exist", uniqueKey)
+	}
+	if globalKey := base.UniqueKey(qname, "agg", nil); r.Exists(ctx, globalKey).Val() != 0 {
+		t.Errorf("unique key %q exists under the global prefix", globalKey)
+	}
 }

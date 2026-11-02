@@ -259,6 +259,9 @@ type Config struct {
 	// must use the same prefix.
 	//
 	// If unset or empty, the global prefix is used (see SetGlobalPrefix).
+	//
+	// The prefix must not contain '{' or '}'. Otherwise it becomes the Redis Cluster hash tag
+	// instead of the queue name, and all keys of all queues land in a single slot.
 	RedisKeyPrefix string
 }
 
@@ -552,7 +555,6 @@ func NewServerFromRedisClient(c redis.UniversalClient, cfg Config) *Server {
 	processor := newProcessor(processorParams{
 		logger:            logger,
 		broker:            rdb,
-		keys:              rdb.Keys(),
 		retryDelayFunc:    delayFunc,
 		taskCheckInterval: taskCheckInterval,
 		baseCtxFn:         baseCtxFn,

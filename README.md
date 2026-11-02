@@ -54,13 +54,11 @@ Caveats:
 The prefix can also be set for a single `Client`, `Inspector`, `Server`, or `Scheduler`, so instances with different
 prefixes can be used in the same process.
 
-- `asynq.WithRedisKeyPrefix(prefix string)` is a new `ConnOption` for `NewClient`, `NewClientFromRedisClient`,
-  `NewInspector`, and `NewInspectorFromRedisClient` (the parameter is variadic, so existing calls still compile).
-- New fields `Config.RedisKeyPrefix` (server) and `SchedulerOpts.RedisKeyPrefix` (scheduler, also used by
+- `asynq.WithRedisKeyPrefix(prefix string)`: an option for `NewClient`, `NewClientFromRedisClient`, `NewInspector`,
+  and `NewInspectorFromRedisClient`.
+- `Config.RedisKeyPrefix` (server) and `SchedulerOpts.RedisKeyPrefix` (scheduler, also used by
   `PeriodicTaskManager`).
-- `internal/base`: key builders are methods of `base.Keys`, which holds the prefix. `rdb.NewRDBWithPrefix` creates an
-  `RDB` that builds all keys with it. The package-level key functions remain and use the global prefix.
-- An empty per-instance prefix means the global prefix, so behavior without the new options does not change.
+- An empty per-instance prefix means the global prefix.
 
 ```go
 client := asynq.NewClient(redisOpt, asynq.WithRedisKeyPrefix("svc-a"))
@@ -73,6 +71,8 @@ Caveats:
 - The prefix is not shared between instances. Each `Client`, `Server`, `Scheduler`, and `Inspector` that works with
   the same queues needs the same value, so take it from one place in the config. A mismatch does not cause errors:
   tasks are enqueued under one prefix and nobody processes them.
+- The prefix must not contain `{` or `}`. Otherwise it becomes the Redis Cluster hash tag instead of the queue name,
+  and all keys of all queues land in a single slot. The same applies to `SetGlobalPrefix`.
 - The `x/rate` semaphore and the CLI only support the global prefix.
 
 #### 2. CLI (`tools/asynq`) additions

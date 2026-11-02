@@ -217,6 +217,10 @@ func (tb *TestBroker) WriteResult(qname, id string, data []byte) (int, error) {
 	return tb.real.WriteResult(qname, id, data)
 }
 
+func (tb *TestBroker) Keys() base.Keys {
+	return tb.real.Keys()
+}
+
 func (tb *TestBroker) Ping() error {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()

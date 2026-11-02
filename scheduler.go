@@ -61,7 +61,7 @@ func NewScheduler(r RedisConnOpt, opts *SchedulerOpts) *Scheduler {
 	rdb := rdb.NewRDBWithPrefix(redisClient, schedulerKeyPrefix(opts))
 
 	scheduler.rdb = rdb
-	scheduler.client = newClientFromRDB(rdb, false)
+	scheduler.client = &Client{broker: rdb, sharedConnection: false}
 
 	return scheduler
 }
@@ -173,6 +173,9 @@ type SchedulerOpts struct {
 	// RedisKeyPrefix specifies the prefix for all redis keys used by the scheduler.
 	//
 	// If unset or empty, the global prefix is used (see SetGlobalPrefix).
+	//
+	// The prefix must not contain '{' or '}'. Otherwise it becomes the Redis Cluster hash tag
+	// instead of the queue name, and all keys of all queues land in a single slot.
 	RedisKeyPrefix string
 }
 
