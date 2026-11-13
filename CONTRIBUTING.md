@@ -45,7 +45,7 @@ Thank you! We'll try to respond as quickly as possible.
 6. Create a new pull request
 
 Please try to keep your pull request focused in scope and avoid including unrelated commits.
-Please run tests against redis cluster locally with `make test-cluster` to ensure that code works for Redis cluster. TODO: Run tests using Redis cluster on CI.
+Please run tests against redis cluster locally with `make test-cluster` to ensure that code works for Redis cluster. CI runs them as well.
 
 After you have submitted your pull request, we'll try to get back to you as soon as possible. We may suggest some changes or improvements.
 
