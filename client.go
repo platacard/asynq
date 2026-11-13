@@ -31,20 +31,21 @@ type Client struct {
 }
 
 // NewClient returns a new Client instance given a redis connection option.
-func NewClient(r RedisConnOpt) *Client {
+func NewClient(r RedisConnOpt, opts ...ClientOption) *Client {
 	redisClient, ok := r.MakeRedisClient().(redis.UniversalClient)
 	if !ok {
 		panic(fmt.Sprintf("asynq: unsupported RedisConnOpt type %T", r))
 	}
-	client := NewClientFromRedisClient(redisClient)
+	client := NewClientFromRedisClient(redisClient, opts...)
 	client.sharedConnection = false
 	return client
 }
 
 // NewClientFromRedisClient returns a new instance of Client given a redis.UniversalClient
 // Warning: The underlying redis connection pool will not be closed by Asynq, you are responsible for closing it.
-func NewClientFromRedisClient(c redis.UniversalClient) *Client {
-	return &Client{broker: rdb.NewRDB(c), sharedConnection: true}
+func NewClientFromRedisClient(c redis.UniversalClient, opts ...ClientOption) *Client {
+	cfg := composeClientOptions(opts...)
+	return &Client{broker: rdb.NewRDBWithPrefix(c, cfg.redisKeyPrefix), sharedConnection: true}
 }
 
 type OptionType int
@@ -379,7 +380,7 @@ func (c *Client) EnqueueContext(ctx context.Context, task *Task, opts ...Option)
 	}
 	var uniqueKey string
 	if opt.uniqueTTL > 0 {
-		uniqueKey = base.UniqueKey(opt.queue, task.Type(), task.Payload())
+		uniqueKey = c.broker.Keys().UniqueKey(opt.queue, task.Type(), task.Payload())
 	}
 	msg := &base.TaskMessage{
 		ID:        opt.taskID,

@@ -291,7 +291,7 @@ func (p *processor) markAsComplete(l *base.Lease, msg *base.TaskMessage) {
 	err := p.broker.MarkAsComplete(ctx, msg)
 	if err != nil {
 		errMsg := fmt.Sprintf("Could not move task id=%s type=%q from %q to %q:  %+v",
-			msg.ID, msg.Type, base.ActiveKey(msg.Queue), base.CompletedKey(msg.Queue), err)
+			msg.ID, msg.Type, p.broker.Keys().ActiveKey(msg.Queue), p.broker.Keys().CompletedKey(msg.Queue), err)
 		p.logger.Warnf("%s; Will retry syncing", errMsg)
 		p.syncRequestCh <- &syncRequest{
 			fn: func() error {
@@ -312,7 +312,7 @@ func (p *processor) markAsDone(l *base.Lease, msg *base.TaskMessage) {
 	defer cancel()
 	err := p.broker.Done(ctx, msg)
 	if err != nil {
-		errMsg := fmt.Sprintf("Could not remove task id=%s type=%q from %q err: %+v", msg.ID, msg.Type, base.ActiveKey(msg.Queue), err)
+		errMsg := fmt.Sprintf("Could not remove task id=%s type=%q from %q err: %+v", msg.ID, msg.Type, p.broker.Keys().ActiveKey(msg.Queue), err)
 		p.logger.Warnf("%s; Will retry syncing", errMsg)
 		p.syncRequestCh <- &syncRequest{
 			fn: func() error {
@@ -359,7 +359,7 @@ func (p *processor) retry(l *base.Lease, msg *base.TaskMessage, e error, isFailu
 	retryAt := time.Now().Add(d)
 	err := p.broker.Retry(ctx, msg, retryAt, e.Error(), isFailure)
 	if err != nil {
-		errMsg := fmt.Sprintf("Could not move task id=%s from %q to %q", msg.ID, base.ActiveKey(msg.Queue), base.RetryKey(msg.Queue))
+		errMsg := fmt.Sprintf("Could not move task id=%s from %q to %q", msg.ID, p.broker.Keys().ActiveKey(msg.Queue), p.broker.Keys().RetryKey(msg.Queue))
 		p.logger.Warnf("%s; Will retry syncing", errMsg)
 		p.syncRequestCh <- &syncRequest{
 			fn: func() error {
@@ -380,7 +380,7 @@ func (p *processor) archive(l *base.Lease, msg *base.TaskMessage, e error) {
 	defer cancel()
 	err := p.broker.Archive(ctx, msg, e.Error())
 	if err != nil {
-		errMsg := fmt.Sprintf("Could not move task id=%s from %q to %q", msg.ID, base.ActiveKey(msg.Queue), base.ArchivedKey(msg.Queue))
+		errMsg := fmt.Sprintf("Could not move task id=%s from %q to %q", msg.ID, p.broker.Keys().ActiveKey(msg.Queue), p.broker.Keys().ArchivedKey(msg.Queue))
 		p.logger.Warnf("%s; Will retry syncing", errMsg)
 		p.syncRequestCh <- &syncRequest{
 			fn: func() error {

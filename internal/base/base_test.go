@@ -803,3 +803,38 @@ func TestLeaseNotifyExpiration(t *testing.T) {
 		t.Errorf("Lease.Done() blocked after call to Lease.NotifyExpiration()")
 	}
 }
+
+func TestKeysWithPrefix(t *testing.T) {
+	k := NewKeys("svc:asynq")
+	now := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	tests := []struct {
+		got  string
+		want string
+	}{
+		{k.Prefix(), "svc:asynq"},
+		{k.AllQueues(), "svc:asynq:queues"},
+		{k.AllServers(), "svc:asynq:servers"},
+		{k.CancelChannel(), "svc:asynq:cancel"},
+		{k.PendingKey("default"), "svc:asynq:{default}:pending"},
+		{k.TaskKey("default", "id"), "svc:asynq:{default}:t:id"},
+		{k.ProcessedKey("default", now), "svc:asynq:{default}:processed:2024-01-02"},
+		{k.AggregationSetKey("q", "g", "s"), "svc:asynq:{q}:g:g:s"},
+		{k.ServerInfoKey("host", 1, "sid"), "svc:asynq:servers:{host:1:sid}"},
+		{k.SchedulerHistoryKey("e"), "svc:asynq:scheduler_history:e"},
+	}
+	for _, tc := range tests {
+		if tc.got != tc.want {
+			t.Errorf("got %q, want %q", tc.got, tc.want)
+		}
+	}
+}
+
+func TestKeysZeroValueUsesGlobalPrefix(t *testing.T) {
+	if got, want := (Keys{}).PendingKey("default"), PendingKey("default"); got != want {
+		t.Errorf("Keys{}.PendingKey(\"default\") = %q, want %q", got, want)
+	}
+	if got, want := NewKeys("").Prefix(), GlobalPrefix; got != want {
+		t.Errorf("NewKeys(\"\").Prefix() = %q, want %q", got, want)
+	}
+}

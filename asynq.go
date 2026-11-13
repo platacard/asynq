@@ -577,9 +577,67 @@ func (w *ResultWriter) TaskID() string {
 	return w.id
 }
 
+// ClientOption configures a Client.
+type ClientOption interface {
+	applyClient(*clientOptions)
+}
+
+// InspectorOption configures an Inspector.
+type InspectorOption interface {
+	applyInspector(*inspectorOptions)
+}
+
+type clientOptions struct {
+	redisKeyPrefix string
+}
+
+type inspectorOptions struct {
+	redisKeyPrefix string
+}
+
+func composeClientOptions(opts ...ClientOption) clientOptions {
+	var res clientOptions
+	for _, opt := range opts {
+		opt.applyClient(&res)
+	}
+	return res
+}
+
+func composeInspectorOptions(opts ...InspectorOption) inspectorOptions {
+	var res inspectorOptions
+	for _, opt := range opts {
+		opt.applyInspector(&res)
+	}
+	return res
+}
+
+type redisKeyPrefixOption string
+
+func (o redisKeyPrefixOption) applyClient(c *clientOptions)       { c.redisKeyPrefix = string(o) }
+func (o redisKeyPrefixOption) applyInspector(i *inspectorOptions) { i.redisKeyPrefix = string(o) }
+
+// WithRedisKeyPrefix sets the prefix for all redis keys used by a Client or an Inspector.
+// It can be passed to both NewClient and NewInspector.
+//
+// Unlike SetGlobalPrefix, it affects only the instance it is passed to, so
+// instances with different prefixes can be used in the same process.
+// If prefix is empty, the global prefix is used.
+//
+// The prefix must not contain '{' or '}'. Otherwise it becomes the Redis Cluster hash tag
+// instead of the queue name, and all keys of all queues land in a single slot.
+func WithRedisKeyPrefix(prefix string) interface {
+	ClientOption
+	InspectorOption
+} {
+	return redisKeyPrefixOption(prefix)
+}
+
 var globalPrefixOnce sync.Once
 
 // SetGlobalPrefix sets the global prefix for all redis keys used by asynq.
+//
+// The prefix must not contain '{' or '}'. Otherwise it becomes the Redis Cluster hash tag
+// instead of the queue name, and all keys of all queues land in a single slot.
 func SetGlobalPrefix(prefix string) {
 	globalPrefixOnce.Do(func() {
 		base.GlobalPrefix = prefix

@@ -58,7 +58,7 @@ func NewScheduler(r RedisConnOpt, opts *SchedulerOpts) *Scheduler {
 		panic(fmt.Sprintf("asynq: unsupported RedisConnOpt type %T", r))
 	}
 
-	rdb := rdb.NewRDB(redisClient)
+	rdb := rdb.NewRDBWithPrefix(redisClient, schedulerKeyPrefix(opts))
 
 	scheduler.rdb = rdb
 	scheduler.client = &Client{broker: rdb, sharedConnection: false}
@@ -72,10 +72,18 @@ func NewScheduler(r RedisConnOpt, opts *SchedulerOpts) *Scheduler {
 func NewSchedulerFromRedisClient(c redis.UniversalClient, opts *SchedulerOpts) *Scheduler {
 	scheduler := newScheduler(opts)
 
-	scheduler.rdb = rdb.NewRDB(c)
-	scheduler.client = NewClientFromRedisClient(c)
+	prefix := schedulerKeyPrefix(opts)
+	scheduler.rdb = rdb.NewRDBWithPrefix(c, prefix)
+	scheduler.client = NewClientFromRedisClient(c, WithRedisKeyPrefix(prefix))
 
 	return scheduler
+}
+
+func schedulerKeyPrefix(opts *SchedulerOpts) string {
+	if opts == nil {
+		return ""
+	}
+	return opts.RedisKeyPrefix
 }
 
 func newScheduler(opts *SchedulerOpts) *Scheduler {
@@ -161,6 +169,14 @@ type SchedulerOpts struct {
 	// EnqueueErrorHandler gets called when scheduler cannot enqueue a registered task
 	// due to an error.
 	EnqueueErrorHandler func(task *Task, opts []Option, err error)
+
+	// RedisKeyPrefix specifies the prefix for all redis keys used by the scheduler.
+	//
+	// If unset or empty, the global prefix is used (see SetGlobalPrefix).
+	//
+	// The prefix must not contain '{' or '}'. Otherwise it becomes the Redis Cluster hash tag
+	// instead of the queue name, and all keys of all queues land in a single slot.
+	RedisKeyPrefix string
 }
 
 // enqueueJob encapsulates the job of enqueuing a task and recording the event.
